@@ -1,3 +1,4 @@
+#include <stdint.h>
 void MprSetup(Adafruit_MPR121 cap) {//mpr121自定义初始化
   cap.writeRegister(MPR121_SOFTRESET, 0x63);//MprReset
   delay(1);
@@ -22,7 +23,7 @@ void MprSetup(Adafruit_MPR121 cap) {//mpr121自定义初始化
   cap.writeRegister(MPR121_UPLIMIT, 202);//上限，((Vdd - 0.7)/Vdd) * 256
   cap.writeRegister(MPR121_TARGETLIMIT, 182);//目标，UPLIMIT * 0.9
   cap.writeRegister(MPR121_LOWLIMIT, 131);//下限，UPLIMIT * 0.65
-  cap.writeRegister(MPR121_ECR, B10000000 + 8);//MprRun
+  cap.writeRegister(MPR121_ECR, B10000000 + 12);//MprRun
 }
 
 enum {
@@ -141,6 +142,7 @@ static void slider_reset() {//重置slider，重新初始化触摸
   res.size = 0;
   req.cmd = 0;
   MprSetup(capL);
+  MprSetup(capC);
   MprSetup(capR);
 }
 
@@ -151,7 +153,7 @@ static void slider_get_board_info() {//返回版本信息
   strcpy(res.version, "15330   \xA0""06712\xFF""\x90");
   req.cmd = 0;
 }
-
+uint8_t pret[32];
 #define CLAMP(val) (val < 0 ? 0 : (val > 255 ? 255 : val))
 static void slider_scan() {//触摸扫描
   if (!auto_scan) {
@@ -162,23 +164,57 @@ static void slider_scan() {//触摸扫描
   res.size = sizeof(res.pressure);
   memset(res.pressure, 0, sizeof(res.pressure));
   int16_t bv, fd, pressure;
-  for (int i = 0; i < 8; i++) {
+  // for (int i = 0; i < 8; i++) {
+  //   bv = capL.baselineData(i);
+  //   fd = capL.filteredData(i);
+  //   pressure = bv - fd - Threshold + 20;
+  //   res.pressure[31 - (i * 2)] = CLAMP(pressure);
+  //   //res.pressure[31 - (i * 2 + 1)] = 0;
+  //   bv = capR.baselineData(i);
+  //   fd = capR.filteredData(i);
+  //   pressure = bv - fd - Threshold + 20;
+  //   res.pressure[31 - (16 + i * 2)] = CLAMP(pressure);
+  //   //res.pressure[31 - (16 + i * 2 + 1)] = 0;
+  // }
+
+  for (int i = 0; i < 32; i++) {
+    res.pressure[i] = 0;
+  }
+  for (int i = 0; i < 12; i++) {
     bv = capL.baselineData(i);
     fd = capL.filteredData(i);
     pressure = bv - fd - Threshold + 20;
-    res.pressure[31 - (i * 2)] = CLAMP(pressure);
-    //res.pressure[31 - (i * 2 + 1)] = 0;
+    res.pressure[31 - i] = CLAMP(pressure);
+  }
+    for (int i = 0; i < 12; i++) {
+    bv = capC.baselineData(i);
+    fd = capC.filteredData(i);
+    pressure = bv - fd - Threshold + 20;
+    res.pressure[19 - i] = CLAMP(pressure);
+  }
+    for (int i = 0; i < 8; i++) {
     bv = capR.baselineData(i);
     fd = capR.filteredData(i);
     pressure = bv - fd - Threshold + 20;
-    res.pressure[31 - (16 + i * 2)] = CLAMP(pressure);
-    //res.pressure[31 - (16 + i * 2 + 1)] = 0;
+    res.pressure[7 - i] = CLAMP(pressure);
   }
+
+
 }
 
 static void slider_set_led() {//串口读取led数据
-  uint8_t t1, t2;
-  for (int i = 0; i < 16; i++) {//BRG
+  // uint8_t t1, t2;
+  // for (int i = 0; i < 16; i++) {//BRG
+  //   t1 = 15 - i;//15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
+  //   t2 = i * 6;//0,12,18,24,30,36,72,48,54,60,66,72,78,84,90,96
+  //   leds[t1].r = req.leds[t2 + 1];
+  //   leds[t1].g = req.leds[t2 + 2];
+  //   leds[t1].b = req.leds[t2 + 0];
+  // }
+  // FastLED.show();
+  // req.cmd = 0;
+
+  for (int i = 0; i < 31; i++) {//BRG
     t1 = 15 - i;
     t2 = i * 6;
     leds[t1].r = req.leds[t2 + 1];
@@ -193,7 +229,7 @@ static void slider_set_led() {//串口读取led数据
 
 #include "Keyboard.h"
 uint8_t KeyCode[10] = {//键值列表
-  '/', '.', '\'', ';', ']', '[',
+  '4', '5', '6', '7', '8', '9',
   KEY_F1, KEY_F2, KEY_F3, KEY_RETURN,
 };
 
@@ -234,6 +270,7 @@ void KeyCheck() {//按钮和AIR检查
     } else {
       Keyboard.press(KeyCode[9]);
       MprSetup(capL);
+      MprSetup(capC);
       MprSetup(capR);
     }
     LastBtn = NowBtn;
@@ -258,6 +295,7 @@ void KeyCheck() {//按钮和AIR检查
   if (NowBtn != LastBtn[3]) {//刷卡键，以及重置触摸
     Keyboard.press(KeyCode[9]);
     MprSetup(capL);
+    MprSetup(capC);
     MprSetup(capR);
   } else {
     Keyboard.release(KeyCode[9]);

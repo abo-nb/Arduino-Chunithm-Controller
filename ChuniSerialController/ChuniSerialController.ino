@@ -28,12 +28,12 @@ uint8_t LastAir[6], LastBtn[4];
 
 #ifdef Enable_LED
 #include "FastLED.h"
-#define LED_NUM 16 //LED数量
+#define LED_NUM 31 //LED数量
 CRGB leds[LED_NUM];
 #endif
 
 #include "Adafruit_MPR121.h"
-Adafruit_MPR121 capL, capR;
+Adafruit_MPR121 capL,capC ,capR;
 #define Threshold 10 //触摸触发阈值
 #include "slider_cmd.h"
 
@@ -51,10 +51,19 @@ void setup() {
   KeySetup();
 #endif
 
-  while (!(capL.begin(0x5A) & capR.begin(0x5C))) {
+  while (!(capL.begin(0x5A) &capC.begin(0x5B) &capR.begin(0x5C))) {
     delay(500);
+    for(int i = 0 ; i<16;i++){
+      leds[i] = CRGB(255,0,0);
+    }
+    FastLED.show();
   }
+      for(int i = 0 ; i<16;i++){
+      leds[i] = CRGB(0,255,0);
+    FastLED.show();
+    }
   MprSetup(capL);
+  MprSetup(capC);
   MprSetup(capR);
   Wire.setClock(800000);
 #ifdef Enable_LED
@@ -63,7 +72,10 @@ void setup() {
 #endif
 }
 
+int16_t bv, fd, pressure;
 void loop() {
+
+  SerialDevice.print('\n');
   switch (slider_read()) {
     case SLIDER_CMD_SET_LED:
       slider_res_init();
